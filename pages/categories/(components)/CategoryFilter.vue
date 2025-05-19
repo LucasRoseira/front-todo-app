@@ -7,9 +7,9 @@ defineProps({
 })
 
 const filters = [
-    { value: 'today', label: 'Today' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'overdue', label: 'Overdue' }
+    { value: 'all', label: 'All' },
+    { value: 'active', label: 'Active' },
+    { value: 'archived', label: 'Archived' }
 ]
 
 defineEmits(['filter'])

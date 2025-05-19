@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import TaskForm from "./TaskFormEdit.vue";
+import TaskFormEdit from "./TaskFormEdit.vue";
 import TaskItem from "./TaskItem.vue";
 import Pagination from "./Pagination.vue";
 import type { Task, TaskStatusHistory } from "~/types/task";
@@ -30,7 +30,8 @@ const emit = defineEmits([
   "delete-task",
   "add-category",
   "save-edit",
-  "load-history"
+  "load-history",
+  "fetch-categories"
 ]);
 
 const editingId = ref<number | null>(null);
@@ -81,7 +82,10 @@ const handleAddCategory = (name: string) => {
 const toggleHistory = async (taskId: number) => {
   expandedHistory.value[taskId] = !expandedHistory.value[taskId];
   if (expandedHistory.value[taskId]) emit("load-history", taskId);
-  
+};
+
+const handleFetchCategories = () => {
+  emit("fetch-categories");
 };
 </script>
 
@@ -135,7 +139,6 @@ const toggleHistory = async (taskId: number) => {
                 class="mt-2 text-xs text-gray-500">
                 No history available
               </div>
-
             </div>
           </div>
 
@@ -152,8 +155,15 @@ const toggleHistory = async (taskId: number) => {
 
         <div v-if="editingId === task.id" class="mt-4 border-t pt-4">
           <h3 class="text-md font-semibold mb-2">Edit Task</h3>
-          <TaskForm v-if="editingTask" :task="editingTask" :categories="categories" @save-task="saveEdit"
-            @cancel="cancelEdit" @add-category="handleAddCategory" />
+          <TaskFormEdit 
+            :task="editingTask" 
+            :categories="categories" 
+            @save-task="saveEdit"
+            @cancel="cancelEdit" 
+            @add-category="handleAddCategory"
+            @fetch-categories="handleFetchCategories"
+
+          />
         </div>
       </li>
     </ul>
@@ -179,7 +189,6 @@ const toggleHistory = async (taskId: number) => {
     opacity: 0;
     transform: translateY(-5px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);

@@ -23,7 +23,7 @@ export const useTasks = () => {
   const fetchTasks = async (
     page: number = 1,
     perPage: number = 10,
-    filter: string = ""
+    filters: Record<string, any> = {}
   ) => {
     loading.value = true;
     error.value = null;
@@ -31,14 +31,21 @@ export const useTasks = () => {
     itemsPerPage.value = perPage;
 
     try {
+      const query = {
+        page,
+        per_page: perPage,
+        ...Object.fromEntries(
+          Object.entries(filters).filter(
+            ([_, value]) =>
+              value !== undefined && value !== null && value !== ""
+          )
+        ),
+      };
+
       const { data, error: fetchError } = await useFetch<PaginatedResponse>(
         `${apiBaseUrl}/api/tasks`,
         {
-          query: {
-            page,
-            per_page: perPage,
-            filter,
-          },
+          query,
           server: false,
         }
       );
@@ -108,7 +115,7 @@ export const useTasks = () => {
       if (task.description) payload.description = task.description;
       if (task.priority) payload.priority = task.priority;
       if (task.due_date) payload.due_date = task.due_date;
-      if (task.category_id) payload.category_id = task.category_id;
+      if (task.category?.id) payload.category.id = task.category?.id;
 
       const { error: updateError } = await useFetch(
         `${apiBaseUrl}/api/tasks/${task.id}`,
@@ -176,11 +183,6 @@ export const useTasks = () => {
     fetchTasks(1, perPage);
   };
 
-  const filterTasks = (filter: string) => {
-    activeFilter.value = filter;
-    fetchTasks(1, itemsPerPage.value, filter);
-  };
-
   if (process.client) fetchTasks();
 
   return {
@@ -197,7 +199,6 @@ export const useTasks = () => {
     createTask,
     setPage,
     setItemsPerPage,
-    filterTasks,
     updateTask,
     deleteTask,
     updateTaskStatus,

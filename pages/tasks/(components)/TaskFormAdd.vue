@@ -17,7 +17,7 @@ const taskData = ref<TaskInput>({
   status: "pending",
   priority: "medium",
   due_date: "",
-  category_id: null,
+  category: { id: 0, name: '' }
 });
 
 
@@ -94,7 +94,7 @@ const addCategory = () => {
         <label class="block text-sm font-semibold text-gray-700 mb-1">Category</label>
         <div class="flex gap-2">
           <select
-            v-model="taskData.category_id"
+            v-model="taskData.category"
             class="flex-1 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
           >
             <option :value="null">No category</option>
