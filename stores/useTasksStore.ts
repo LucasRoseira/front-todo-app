@@ -14,7 +14,6 @@ export const useTaskStore = defineStore("tasks", () => {
 
   const activeFilter = ref<string>("");
   const tasks = ref<Task[]>([]);
-  const loading = ref(false);
   const loadingHistory = ref(false);
   const error = ref<Error | null>(null);
   const currentPage = ref(1);
@@ -27,7 +26,6 @@ export const useTaskStore = defineStore("tasks", () => {
     perPage: number = 10,
     filters: Record<string, any> = {}
   ) => {
-    loading.value = true;
     error.value = null;
     currentPage.value = page;
     itemsPerPage.value = perPage;
@@ -53,7 +51,7 @@ export const useTaskStore = defineStore("tasks", () => {
       );
 
       if (fetchError.value) throw fetchError.value;
-      
+
       if (data.value) {
         tasks.value = data.value.data;
         currentPage.value = data.value.current_page;
@@ -63,12 +61,10 @@ export const useTaskStore = defineStore("tasks", () => {
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err));
       console.error("Failed to fetch tasks:", error.value);
-    } finally {
-      loading.value = false;
     }
   };
 
-  const createTask = async (newTask: Partial<Task>) => {
+  const saveTask = async (newTask: Partial<Task>) => {
     try {
       const data = await $fetch<Task>(`${apiBaseUrl}/api/tasks`, {
         method: "POST",
@@ -82,7 +78,7 @@ export const useTaskStore = defineStore("tasks", () => {
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err));
       console.error("Erro ao criar tarefa:", error.value);
-    }
+    } 
   };
 
   const deleteTask = async (taskId: number) => {
@@ -107,7 +103,6 @@ export const useTaskStore = defineStore("tasks", () => {
 
   const updateTask = async (task: Task) => {
     const originalStatus = task.status;
-
     try {
       task.status = task.status === "completed" ? "pending" : "completed";
 
@@ -133,12 +128,11 @@ export const useTaskStore = defineStore("tasks", () => {
       task.status = originalStatus;
       error.value = err instanceof Error ? err : new Error(String(err));
       console.error("Failed to update task status:", error.value);
-    }
+    } 
   };
 
   const updateTaskStatus = async (task: Task) => {
     const originalStatus = task.status;
-
     try {
       task.status = task.status === "completed" ? "pending" : "completed";
 
@@ -156,13 +150,12 @@ export const useTaskStore = defineStore("tasks", () => {
       task.status = originalStatus;
       error.value = err instanceof Error ? err : new Error(String(err));
       console.error("Failed to update task status:", error.value);
-    }
+    } 
   };
 
   const fetchTaskHistory = async (taskId: number) => {
+    loadingHistory.value = true;
     try {
-      loadingHistory.value = true;
-
       const response = await fetch(`${apiBaseUrl}/api/tasks/${taskId}/history`);
       if (!response.ok) throw new Error("Failed to fetch task history");
       loadingHistory.value = false;
@@ -171,6 +164,8 @@ export const useTaskStore = defineStore("tasks", () => {
     } catch (error) {
       console.error("Error fetching task history:", error);
       throw error;
+    } finally {
+      loadingHistory.value = false;
     }
   };
 
@@ -180,9 +175,8 @@ export const useTaskStore = defineStore("tasks", () => {
   };
 
   const setPage = (page: number) => {
-    if (page >= 1 && page <= totalPages.value) {
+    if (page >= 1 && page <= totalPages.value)
       fetchTasks(page, itemsPerPage.value);
-    }
   };
 
   const setItemsPerPage = (perPage: number) => {
@@ -194,7 +188,6 @@ export const useTaskStore = defineStore("tasks", () => {
 
   return {
     tasks,
-    loading,
     error,
     currentPage,
     itemsPerPage,
@@ -204,7 +197,7 @@ export const useTaskStore = defineStore("tasks", () => {
     loadingHistory,
     handleFilter,
     fetchTasks,
-    createTask,
+    saveTask,
     setPage,
     setItemsPerPage,
     updateTask,

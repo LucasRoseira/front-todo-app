@@ -12,7 +12,7 @@ const props = defineProps({
     }
 })
 
-const emit = defineEmits(['filter', 'search'])
+const emit = defineEmits(['filter', 'search', 'search-blur'])
 const showFilterModal = ref(false);
 
 const tabFilters = [
@@ -36,6 +36,9 @@ const filters: { [key: string]: any } = reactive({
     per_page: 10
 })
 
+const handleBlur = () => {
+    if (localSearchQuery.value) emit('search-blur', localSearchQuery.value)
+}
 
 const applyFilters = () => {
     emit('filter', { ...filters });
@@ -66,7 +69,8 @@ const resetFilters = () => {
         </div>
 
         <div class="relative bg-white rounded-lg shadow p-4 flex items-center gap-2">
-            <input v-model="localSearchQuery" @keyup.enter="handleSearch" type="text" placeholder="Search Tasks..."
+            <input v-model="localSearchQuery" @keyup.enter="handleSearch" @blur="handleBlur" type="text"
+                placeholder="Search Tasks..."
                 class="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
 
             <button @click="showFilterModal = true" class="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300 text-sm">
@@ -103,10 +107,9 @@ const resetFilters = () => {
 
                     <input v-model="filters.due_date" type="date" class="input" />
                     <input v-model.number="filters.category_id" type="number" placeholder="Category ID" class="input" />
-
                 </div>
 
-                <div class="flex gap-2 mt-4">
+                <div class="flex justify-end gap-2 mt-4">
                     <button @click="applyFilters" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
                         Apply
                     </button>

@@ -41,21 +41,28 @@ const responsibleClasses = computed(() => ({
     <input type="checkbox" class="mt-1 mr-3" :checked="task.status === 'completed'"
       @change="$emit('toggle-status', task)">
     <div class="flex-1">
-      <span class="font-medium" :class="{ 'line-through text-gray-400': task.status === 'completed' }">
-        {{ task.title }}
-      </span>
+      <div>
+        <span class="font-medium" :class="{ 'line-through text-gray-400': task.status === 'completed' }">
+          {{ task.title }}
+        </span>
+        <span v-if="task.category?.name" class="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
+          {{ task.category.name }}
+        </span>
+        <span v-if="task.responsible_name" class="ml-2 px-2 py-0.5 text-xs rounded" :class="responsibleClasses">
+          {{ task.responsible_name }}
+        </span>
+      </div>
+
+      <p v-if="task.description" class="text-sm text-gray-700 mt-1">
+        {{ task.description }}
+      </p>
+
       <div class="text-sm text-gray-500 mt-1">
         <span v-if="task.due_date">
           {{ formatDate(task.due_date) }}
         </span>
         <span v-if="task.priority !== 'medium'" class="ml-2 px-2 py-0.5 text-xs rounded" :class="priorityClasses">
           {{ task.priority }}
-        </span>
-        <span v-if="task.category.name" class="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
-          {{ task.category.name }}
-        </span>
-        <span v-if="task.responsible_name" class="ml-2 px-2 py-0.5 text-xs rounded" :class="responsibleClasses">
-          {{ task.responsible_name }}
         </span>
       </div>
     </div>

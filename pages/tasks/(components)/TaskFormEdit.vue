@@ -4,7 +4,7 @@ import { ref, watch } from "vue";
 
 const props = defineProps<{
   task: Task | null;
-  categories: Array<{ id: number; name: string }>;
+  categories: Array<{ id: number; name?: string }>;
 }>();
 
 const emit = defineEmits<{
@@ -56,7 +56,11 @@ const handleCategorySelectClick = () => {
       <textarea v-model="taskData.description" rows="3"
         class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"></textarea>
     </div>
-
+    <div>
+      <label class="block text-sm font-semibold text-gray-700 mb-1">Responsible</label>
+      <input type="text" :value="taskData.responsible_name" readonly
+        class="w-full rounded-md border border-gray-300 px-3 py-2 bg-gray-100 text-gray-700 cursor-not-allowed" />
+    </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
       <div>
         <label class="block text-sm font-semibold text-gray-700 mb-1">Status</label>
@@ -90,7 +94,7 @@ const handleCategorySelectClick = () => {
         <div>
           <label class="block text-sm font-semibold text-gray-700 mb-1">Category</label>
           <div class="flex gap-2">
-            <select v-model="taskData.category" @click="handleCategorySelectClick"
+            <select v-model="taskData.category.id" @click="handleCategorySelectClick"
               class="flex-1 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400">
               <option :value="null">No category</option>
               <option v-for="category in categories" :key="category.id" :value="category.id">
@@ -103,16 +107,6 @@ const handleCategorySelectClick = () => {
               +
             </button>
           </div>
-        </div>
-
-        <div class="flex justify-end gap-4 mt-6">
-          <button type="button" @click="emit('cancel')"
-            class="px-5 py-2 border border-gray-300 rounded-md hover:bg-gray-100">
-            Cancel
-          </button>
-          <button type="submit" class="px-5 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition">
-            Save
-          </button>
         </div>
 
         <div v-if="showCategoryModal"
@@ -134,6 +128,15 @@ const handleCategorySelectClick = () => {
           </div>
         </div>
       </div>
+    </div>
+    <div class="flex justify-end gap-4 mt-6">
+      <button type="button" @click="emit('cancel')"
+        class="px-5 py-2 border border-gray-300 rounded-md hover:bg-gray-100">
+        Cancel
+      </button>
+      <button type="submit" class="px-5 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition">
+        Save
+      </button>
     </div>
   </form>
 </template>

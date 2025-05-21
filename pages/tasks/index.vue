@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { useTaskStore } from '~/stores/tasks'
+import { useTaskStore } from "~/stores/useTasksStore";
 import TaskForm from "./(components)/TaskFormEdit.vue";
 import TaskFormAdd from "./(components)/TaskFormAdd.vue";
 import TaskFilter from "./(components)/TaskFilter.vue";
@@ -11,36 +11,40 @@ import LoadingOverlay from "../../public/shared/components/LoadingOverlay.vue";
 const toast = useNuxtApp().$toast;
 
 const {
-  tasks,
-  loading,
-  loadingHistory,
   error,
-  currentPage,
-  totalPages,
-  totalTasks,
   activeFilter,
   fetchTasks,
   setPage,
   updateTask,
-  createTask,
+  saveTask,
   deleteTask,
   updateTaskStatus,
   fetchTaskHistory,
-} = useTasks();
+  handleFilter,
+} = useTaskStore();
 
-const {
-  categories: fetchedCategories,
-  fetchCategories,
-  createCategory,
-  deleteCategory,
-} = useCategories();
+const { fetchCategories } = useCategoriesStore();
 
 const editingTask = ref<Task | null>(null);
 const showCreateModal = ref(false);
-const categories = ref<{ id: number; name: string }[]>([]);
 const taskHistory = ref<Record<number, any[]>>({});
 const searchQuery = ref("");
-const showFilterModal = ref(false);
+const taskStore = useTaskStore();
+const loadingTasks = ref(false);
+const loadingCategories = ref(false);
+const loadingTaskHistory = ref(false);
+const isSaving = ref(false);
+
+const {
+  tasks,
+  totalPages,
+  totalTasks,
+  currentPage,
+  loadingHistory,
+} = storeToRefs(taskStore);
+
+const categoryStore = useCategoriesStore();
+const { categories } = storeToRefs(categoryStore);
 
 const handleEdit = (task: Task) => {
   if (editingTask.value?.id === task.id) return (editingTask.value = null);
@@ -57,16 +61,18 @@ const cancelEdit = () => {
   showCreateModal.value = false;
 };
 
-const handleFilter = (filter: Record<string, any>) => {
-  if (filter.status) activeFilter.value = filter.status;
-  fetchTasks(1, 10, filter);
-};
-
 const handleSearch = (query: string) => {
   searchQuery.value = query;
 };
 
-const isSaving = ref(false);
+const handleSearchBlur = (query: string) => {
+  loadingTasks.value = true;
+  fetchTasks(1, 10, { title: query })
+    .finally(() => {
+      loadingTasks.value = false;
+    });
+};
+
 
 const saveTaskStatus = async (updatedTask: Task) => {
   isSaving.value = true;
@@ -75,8 +81,11 @@ const saveTaskStatus = async (updatedTask: Task) => {
     await fetchTasks();
     showCreateModal.value = false;
     editingTask.value = null;
+
     toast.success("Status da tarefa atualizado com sucesso!");
   } catch (err) {
+    isSaving.value = false;
+
     console.error(err);
     toast.error("Erro ao atualizar status da tarefa.");
   } finally {
@@ -84,20 +93,24 @@ const saveTaskStatus = async (updatedTask: Task) => {
   }
 };
 
-const saveEdit = async (updatedTask: Task) => {
+const createTask = async (task: Task) => {
   isSaving.value = true;
+
   try {
-    if (!updatedTask.id) {
-      await createTask(updatedTask);
+    if (!task.id) {
+      await saveTask(task);
       toast.success("Tarefa criada com sucesso!");
     } else {
-      await updateTask(updatedTask);
+      await updateTask(task);
       toast.success("Tarefa atualizada com sucesso!");
     }
+    isSaving.value = false;
+
     await fetchTasks();
     showCreateModal.value = false;
     editingTask.value = null;
   } catch (err) {
+    isSaving.value = false;
     console.error(err);
     toast.error("Erro ao salvar tarefa.");
   } finally {
@@ -111,18 +124,22 @@ const handleDeleteTask = async (task: Task) => {
     await fetchTasks();
     toast.success("Tarefa deletada com sucesso!");
   } catch (err) {
+
     console.error(err);
     toast.error("Erro ao deletar tarefa.");
   }
 };
 
 const handleShowHistory = async (taskId: number) => {
+  loadingTaskHistory.value = true;
   try {
     const history = await fetchTaskHistory(taskId);
     taskHistory.value[taskId] = history;
   } catch (err) {
     console.error(err);
     toast.error(`Erro ao buscar histórico da tarefa ${taskId}`);
+  } finally {
+    loadingTaskHistory.value = false;
   }
 };
 
@@ -156,10 +173,26 @@ const handleFetchCategories = async () => {
   }
 };
 
-onMounted(() => {
-  fetchTasks();
-  handleFetchCategories();
+onMounted(async () => {
+  loadingTasks.value = true;
+  loadingCategories.value = true;
+
+  try {
+    await Promise.all([
+      fetchTasks(),
+      handleFetchCategories()
+    ]);
+  } catch (error) {
+    loadingTasks.value = false;
+    loadingCategories.value = false;
+    console.error(error);
+    toast.error("Erro ao carregar dados iniciais");
+  } finally {
+    loadingTasks.value = false;
+    loadingCategories.value = false;
+  }
 });
+
 </script>
 
 <template>
@@ -173,27 +206,30 @@ onMounted(() => {
       </div>
       <NuxtLink to="/categories"
         class="flex-1 text-center py-2 rounded-lg font-medium cursor-pointer transition-colors mx-[1px] bg-gray-100 hover:bg-gray-200">
-        Add Category
+        List Categories
       </NuxtLink>
     </div>
 
-    <TaskFilter :active-filter="activeFilter" :search-query="searchQuery" @filter="handleFilter"
-      @search="handleSearch" />
-
-    <TaskForm v-if="editingTask" :task="editingTask" :categories="categories" @save-task="saveEdit" @cancel="cancelEdit"
-      @add-category="handleAddCategory" />
-
-    <TaskFormAdd v-if="showCreateModal && !editingTask" :categories="categories" @save-task="saveEdit"
+    <TaskFormAdd v-if="showCreateModal && !editingTask" :categories="categories" @save-task="createTask"
       @cancel="cancelEdit" @add-category="handleAddCategory" />
 
-    <TaskList :tasks="tasks" :loading="loading" :current-page="currentPage" :total-pages="totalPages"
+    <TaskFilter :active-filter="activeFilter" :search-query="searchQuery" @filter="handleFilter" @search="handleSearch"
+      @search-blur="handleSearchBlur" />
+
+    <TaskForm v-if="editingTask" :task="editingTask" :categories="categories" @save-task="createTask"
+      @cancel="cancelEdit" @add-category="handleAddCategory" />
+
+    <TaskList :tasks="tasks" :loading="loadingTasks" :current-page="currentPage" :total-pages="totalPages"
       :total-tasks="totalTasks" :categories="categories" :taskHistory="taskHistory" :loadingHistory="loadingHistory"
-      @toggle-status="saveTaskStatus" @save-edit="saveEdit" @prev-page="() => setPage(currentPage - 1)"
+      @toggle-status="saveTaskStatus" @save-edit="createTask" @prev-page="() => setPage(currentPage - 1)"
       @next-page="() => setPage(currentPage + 1)" @page-change="setPage" @edit-task="handleEdit"
       @cancel-task="cancelEdit" @delete-task="handleDeleteTask" @add-category="handleAddCategory"
       @load-history="handleShowHistory" @show-history="handleShowHistory" @handleFilter="handleFilter"
       @handleFetchCategories="handleFetchCategories" />
 
-    <LoadingOverlay v-if="isSaving" />
+    <LoadingOverlay v-if="loadingTasks || loadingCategories" />
+    <LoadingOverlay v-if="isSaving" :message="'Saving...'" />
+    <LoadingOverlay v-if="loadingTaskHistory" :message="'Loading history...'" />
+
   </div>
 </template>

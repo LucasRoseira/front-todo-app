@@ -1,13 +1,14 @@
+import { defineStore } from "pinia";
 import type { Category } from "~/types/category";
 
-export interface PaginatedResponse {
+interface PaginatedResponse {
   data: Category[];
   current_page: number;
   last_page: number;
   total: number;
 }
 
-export const useCategories = () => {
+export const useCategoriesStore = defineStore("categories", () => {
   const config = useRuntimeConfig();
   const apiBaseUrl = config.public.apiBaseUrl;
   const activeFilter = ref<string>("");
@@ -18,12 +19,11 @@ export const useCategories = () => {
   const itemsPerPage = ref(10);
   const totalCategories = ref(0);
   const totalPages = ref(1);
-  const lastPage = ref(1);
 
   const fetchCategories = async (
     page: number = 1,
     perPage: number = 10,
-    filter: string = ""
+    filters: Record<string, any> = {}
   ) => {
     loading.value = true;
     error.value = null;
@@ -31,14 +31,21 @@ export const useCategories = () => {
     itemsPerPage.value = perPage;
 
     try {
+      const query = {
+        page,
+        per_page: perPage,
+        ...Object.fromEntries(
+          Object.entries(filters).filter(
+            ([_, value]) =>
+              value !== undefined && value !== null && value !== ""
+          )
+        ),
+      };
+
       const { data, error: fetchError } = await useFetch<PaginatedResponse>(
         `${apiBaseUrl}/api/categories`,
         {
-          query: {
-            page,
-            per_page: perPage,
-            filter,
-          },
+          query,
           server: false,
         }
       );
@@ -61,24 +68,20 @@ export const useCategories = () => {
 
   const createCategory = async (newCategory: Partial<Category>) => {
     try {
-      const { data, error: createError } = await useFetch<Category>(
-        `${apiBaseUrl}/api/categories`,
-        {
-          method: "POST",
-          body: newCategory,
-          server: false,
-        }
-      );
+      const data = await $fetch<Category>(`${apiBaseUrl}/api/categories`, {
+        method: "POST",
+        body: newCategory,
+      });
 
-      if (createError.value) throw createError.value;
-
-      if (data.value) {
-        categories.value.unshift(data.value);
+      if (data) {
+        categories.value.unshift(data);
         totalCategories.value++;
       }
+      return data;
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err));
       console.error("Erro ao criar categoria:", error.value);
+      throw err;
     }
   };
 
@@ -94,32 +97,56 @@ export const useCategories = () => {
 
       if (deleteError.value) throw deleteError.value;
 
-      categories.value = categories.value.filter((c) => c.id !== categoryId);
+      categories.value = categories.value.filter(
+        (category) => category.id !== categoryId
+      );
       totalCategories.value--;
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err));
       console.error("Erro ao deletar categoria:", error.value);
+      throw err;
     }
   };
 
   const updateCategory = async (category: Category) => {
+    const originalCategory = { ...category };
+
     try {
+      const payload: Partial<Category> = {
+        name: category.name,
+      };
+
       const { error: updateError } = await useFetch(
         `${apiBaseUrl}/api/categories/${category.id}`,
         {
           method: "PUT",
-          body: {
-            status: category,
-          },
+          body: payload,
           server: false,
         }
       );
 
       if (updateError.value) throw updateError.value;
+
+      const index = categories.value.findIndex((c) => c.id === category.id);
+      if (index !== -1) {
+        categories.value[index] = { ...categories.value[index], ...payload };
+      }
     } catch (err) {
+      const index = categories.value.findIndex(
+        (c) => c.id === originalCategory.id
+      );
+      if (index !== -1) {
+        categories.value[index] = originalCategory;
+      }
       error.value = err instanceof Error ? err : new Error(String(err));
-      console.error("Failed to update category status:", error.value);
+      console.error("Failed to update category:", error.value);
+      throw err;
     }
+  };
+
+  const handleFilter = (filter: Record<string, any>) => {
+    if (filter.name) activeFilter.value = filter.name;
+    fetchCategories(1, 10, filter);
   };
 
   const setPage = (page: number) => {
@@ -131,17 +158,6 @@ export const useCategories = () => {
   const setItemsPerPage = (perPage: number) => {
     itemsPerPage.value = perPage;
     fetchCategories(1, perPage);
-  };
-
-  const filterCategories = (filter: string) => {
-    activeFilter.value = filter;
-    fetchCategories(1, itemsPerPage.value, filter);
-  };
-
-  const loadMore = async () => {
-    if (currentPage.value < lastPage.value && !loading.value) {
-      await fetchCategories(currentPage.value + 1);
-    }
   };
 
   if (process.client) fetchCategories();
@@ -159,9 +175,8 @@ export const useCategories = () => {
     createCategory,
     setPage,
     setItemsPerPage,
-    filterCategories,
     updateCategory,
     deleteCategory,
-    loadMore,
+    handleFilter,
   };
-};
+});

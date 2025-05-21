@@ -5,6 +5,7 @@ import Pagination from "./Pagination.vue";
 import type { Task, TaskStatusHistory } from "~/types/task";
 import { ref } from "vue";
 import ConfirmDeleteModal from "./ConfirmDeleteModal.vue";
+import TaskHistory from "./TaskHistory.vue";
 
 defineProps<{
   tasks: Task[];
@@ -13,7 +14,7 @@ defineProps<{
   totalTasks: number;
   loading: boolean;
   loadingHistory: boolean;
-  categories: Array<{ id: number; name: string }>;
+  categories: Array<{ id: number; name?: string }>;
   error?: any;
   taskHistory: Record<number, TaskStatusHistory[]>;
 }>();
@@ -31,7 +32,7 @@ const emit = defineEmits([
   "add-category",
   "save-edit",
   "load-history",
-  "fetch-categories"
+  "fetch-categories",
 ]);
 
 const editingId = ref<number | null>(null);
@@ -100,46 +101,14 @@ const handleFetchCategories = () => {
     </div>
 
     <ul v-else class="space-y-3">
-      <li v-for="task in tasks" :key="task.id" class="bg-white shadow p-4 rounded border space-y-3">
+      <li v-for="task in tasks" :key="task.id" class="bg-white shadow p-4 rounded border space-y-3 hover:bg-gray-50">
         <div class="flex justify-between items-start gap-4">
           <div class="flex-1">
-            <TaskItem :task="task" @toggle-status="$emit('toggle-status', task)" />
+            <TaskItem :task="task" class="" @toggle-status="$emit('toggle-status', task)" />
 
-            <div class="mt-2">
-              <button @click="toggleHistory(task.id)"
-                class="text-xs text-blue-600 hover:text-blue-800 flex items-center">
-                <span>{{ expandedHistory[task.id] ? '▼' : '▶' }}</span>
-                <span class="ml-1">{{ expandedHistory[task.id] ? 'Hide History' : 'Show History' }}</span>
-              </button>
+            <TaskHistory :task-id="task.id" :expanded="expandedHistory[task.id]" :history="taskHistory[task.id] || []"
+              :loading="loadingHistory" @toggle="toggleHistory" />
 
-              <div v-if="loadingHistory" class="mt-1 text-xs text-gray-500">
-                Loading history...
-              </div>
-
-              <div v-if="expandedHistory[task.id] && taskHistory[task.id]?.length"
-                class="mt-2 border-t pt-2 animate-fade-in">
-                <h4 class="text-sm font-medium mb-1">Status History</h4>
-                <ul class="space-y-1">
-                  <li v-for="(entry, index) in taskHistory[task.id]" :key="index"
-                    class="text-xs text-gray-600 flex items-center">
-                    <span class="inline-block w-3 h-3 rounded-full mr-2 flex-shrink-0" :class="{
-                      'bg-green-500': entry.status === 'completed',
-                      'bg-yellow-500': entry.status === 'in_progress',
-                      'bg-gray-500': entry.status === 'pending'
-                    }"></span>
-                    <div class="flex flex-wrap items-baseline gap-1">
-                      <span class="font-medium capitalize">{{ entry.status.replace('_', ' ') }}</span>
-                      <span>-</span>
-                      <span class="text-gray-500">{{ new Date(entry.changed_at).toLocaleString() }}</span>
-                    </div>
-                  </li>
-                </ul>
-              </div>
-              <div v-else-if="expandedHistory[task.id] && !loadingHistory && !taskHistory[task.id]?.length"
-                class="mt-2 text-xs text-gray-500">
-                No history available
-              </div>
-            </div>
           </div>
 
           <div class="flex gap-2">
@@ -155,15 +124,8 @@ const handleFetchCategories = () => {
 
         <div v-if="editingId === task.id" class="mt-4 border-t pt-4">
           <h3 class="text-md font-semibold mb-2">Edit Task</h3>
-          <TaskFormEdit 
-            :task="editingTask" 
-            :categories="categories" 
-            @save-task="saveEdit"
-            @cancel="cancelEdit" 
-            @add-category="handleAddCategory"
-            @fetch-categories="handleFetchCategories"
-
-          />
+          <TaskFormEdit :task="editingTask" :categories="categories" @save-task="saveEdit" @cancel="cancelEdit"
+            @add-category="handleAddCategory" @fetch-categories="handleFetchCategories" />
         </div>
       </li>
     </ul>
@@ -189,6 +151,7 @@ const handleFetchCategories = () => {
     opacity: 0;
     transform: translateY(-5px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
