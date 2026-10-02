@@ -1,235 +1,210 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { useTaskStore } from "~/stores/useTasksStore";
-import TaskForm from "./(components)/TaskFormEdit.vue";
-import TaskFormAdd from "./(components)/TaskFormAdd.vue";
-import TaskFilter from "./(components)/TaskFilter.vue";
-import TaskList from "./(components)/TaskList.vue";
-import type { Task } from "~/types/task";
-import LoadingOverlay from "../../public/shared/components/LoadingOverlay.vue";
+import { storeToRefs } from 'pinia'
+import type { Task, TaskFilters, TaskPayload } from '~/types/task'
+import { useTaskStore } from '~/stores/tasks'
+import { useCategoriesStore } from '~/stores/categories'
+import { useToastStore } from '~/stores/toasts'
+import { toApiError } from '~/utils/apiError'
 
-const toast = useNuxtApp().$toast;
+definePageMeta({ layout: 'default' })
+useHead({ title: 'Tasks' })
 
-const {
-  error,
-  activeFilter,
-  fetchTasks,
-  setPage,
-  updateTask,
-  saveTask,
-  deleteTask,
-  updateTaskStatus,
-  fetchTaskHistory,
-  handleFilter,
-} = useTaskStore();
-
-const { fetchCategories } = useCategoriesStore();
-
-const editingTask = ref<Task | null>(null);
-const showCreateModal = ref(false);
-const taskHistory = ref<Record<number, any[]>>({});
-const searchQuery = ref("");
-const taskStore = useTaskStore();
-const loadingTasks = ref(false);
-const loadingCategories = ref(false);
-const loadingTaskHistory = ref(false);
-const isSaving = ref(false);
+const taskStore = useTaskStore()
+const categoryStore = useCategoriesStore()
+const toast = useToastStore()
 
 const {
   tasks,
-  totalPages,
-  totalTasks,
+  loading,
+  error,
   currentPage,
-  loadingHistory,
-} = storeToRefs(taskStore);
+  totalPages,
+  historyByTaskId,
+  historyLoadingId,
+  filters,
+  hasActiveFilters,
+  isEmpty,
+  rangeLabel,
+} = storeToRefs(taskStore)
 
-const categoryStore = useCategoriesStore();
-const { categories } = storeToRefs(categoryStore);
+const { options: categories } = storeToRefs(categoryStore)
 
-const handleEdit = (task: Task) => {
-  if (editingTask.value?.id === task.id) return (editingTask.value = null);
-  return (editingTask.value = { ...task });
-};
-
-const handleStart = () => {
-  editingTask.value = null;
-  showCreateModal.value = true;
-};
-
-const cancelEdit = () => {
-  editingTask.value = null;
-  showCreateModal.value = false;
-};
-
-const handleSearch = (query: string) => {
-  searchQuery.value = query;
-};
-
-const handleSearchBlur = (query: string) => {
-  loadingTasks.value = true;
-  fetchTasks(1, 10, { title: query })
-    .finally(() => {
-      loadingTasks.value = false;
-    });
-};
-
-
-const saveTaskStatus = async (updatedTask: Task) => {
-  isSaving.value = true;
-  try {
-    await updateTaskStatus(updatedTask);
-    await fetchTasks();
-    showCreateModal.value = false;
-    editingTask.value = null;
-
-    toast.success("Status da tarefa atualizado com sucesso!");
-  } catch (err) {
-    isSaving.value = false;
-
-    console.error(err);
-    toast.error("Erro ao atualizar status da tarefa.");
-  } finally {
-    isSaving.value = false;
-  }
-};
-
-const createTask = async (task: Task) => {
-  isSaving.value = true;
-
-  try {
-    if (!task.id) {
-      await saveTask(task);
-      toast.success("Tarefa criada com sucesso!");
-    } else {
-      await updateTask(task);
-      toast.success("Tarefa atualizada com sucesso!");
-    }
-    isSaving.value = false;
-
-    await fetchTasks();
-    showCreateModal.value = false;
-    editingTask.value = null;
-  } catch (err) {
-    isSaving.value = false;
-    console.error(err);
-    toast.error("Erro ao salvar tarefa.");
-  } finally {
-    isSaving.value = false;
-  }
-};
-
-const handleDeleteTask = async (task: Task) => {
-  try {
-    await deleteTask(task.id);
-    await fetchTasks();
-    toast.success("Tarefa deletada com sucesso!");
-  } catch (err) {
-
-    console.error(err);
-    toast.error("Erro ao deletar tarefa.");
-  }
-};
-
-const handleShowHistory = async (taskId: number) => {
-  loadingTaskHistory.value = true;
-  try {
-    const history = await fetchTaskHistory(taskId);
-    taskHistory.value[taskId] = history;
-  } catch (err) {
-    console.error(err);
-    toast.error(`Erro ao buscar histórico da tarefa ${taskId}`);
-  } finally {
-    loadingTaskHistory.value = false;
-  }
-};
-
-const handleAddCategory = async (name: string) => {
-  try {
-    const response = await fetch("/api/categories", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ name }),
-    });
-
-    if (!response.ok) throw new Error("Falha ao adicionar categoria");
-
-    const newCategory = await response.json();
-    categories.value = [...categories.value, newCategory];
-    toast.success("Categoria adicionada com sucesso!");
-  } catch (error) {
-    console.error(error);
-    toast.error("Erro ao adicionar categoria.");
-  }
-};
-
-const handleFetchCategories = async () => {
-  try {
-    await fetchCategories();
-  } catch (error) {
-    console.error(error);
-    toast.error("Erro ao buscar categorias.");
-  }
-};
+const formOpen = ref(false)
+const editingTask = ref<Task | null>(null)
+const saving = ref(false)
+const formError = ref<string | null>(null)
+const pendingDelete = ref<Task | null>(null)
+const deleting = ref(false)
+const expandedHistory = ref<Record<number, boolean>>({})
 
 onMounted(async () => {
-  loadingTasks.value = true;
-  loadingCategories.value = true;
+  await Promise.all([
+    taskStore.fetchTasks(),
+    categoryStore.fetchCategoryOptions().catch((cause) => {
+      toast.error(toApiError(cause).message)
+    }),
+  ])
+})
 
+function openCreate() {
+  editingTask.value = null
+  formError.value = null
+  formOpen.value = true
+}
+
+function openEdit(task: Task) {
+  editingTask.value = task
+  formError.value = null
+  formOpen.value = true
+}
+
+function closeForm() {
+  formOpen.value = false
+  editingTask.value = null
+  formError.value = null
+}
+
+async function onFilterChange(filters: TaskFilters) {
+  await taskStore.applyFilters(filters)
+}
+
+async function onSave(payload: TaskPayload) {
+  saving.value = true
+  formError.value = null
   try {
-    await Promise.all([
-      fetchTasks(),
-      handleFetchCategories()
-    ]);
-  } catch (error) {
-    loadingTasks.value = false;
-    loadingCategories.value = false;
-    console.error(error);
-    toast.error("Erro ao carregar dados iniciais");
+    if (editingTask.value) {
+      await taskStore.updateTask(editingTask.value.id, payload)
+      toast.success('Task updated')
+    } else {
+      await taskStore.createTask(payload)
+      toast.success('Task created')
+    }
+    closeForm()
+  } catch (cause) {
+    formError.value = toApiError(cause).message
   } finally {
-    loadingTasks.value = false;
-    loadingCategories.value = false;
+    saving.value = false
   }
-});
+}
 
+async function onToggle(task: Task) {
+  try {
+    await taskStore.toggleTaskStatus(task)
+    toast.success(task.status === 'completed' ? 'Task reopened' : 'Task completed')
+  } catch (cause) {
+    toast.error(toApiError(cause).message)
+  }
+}
+
+async function confirmDelete() {
+  if (!pendingDelete.value) return
+  deleting.value = true
+  try {
+    await taskStore.deleteTask(pendingDelete.value.id)
+    toast.success('Task deleted')
+    pendingDelete.value = null
+  } catch (cause) {
+    toast.error(toApiError(cause).message)
+  } finally {
+    deleting.value = false
+  }
+}
+
+async function onToggleHistory(taskId: number) {
+  expandedHistory.value = {
+    ...expandedHistory.value,
+    [taskId]: !expandedHistory.value[taskId],
+  }
+  if (!expandedHistory.value[taskId]) return
+  try {
+    await taskStore.fetchTaskHistory(taskId)
+  } catch (cause) {
+    toast.error(toApiError(cause).message)
+  }
+}
 </script>
 
 <template>
-  <div class="p-6 max-w-2xl mx-auto">
-    <h1 class="text-2xl font-bold mb-6">Todo App</h1>
-
-    <div class="flex justify-between mb-6 bg-white rounded-lg shadow p-4">
-      <div @click="handleStart"
-        class="flex-1 text-center py-2 rounded-lg font-medium cursor-pointer transition-colors mx-[1px] bg-gray-100 hover:bg-gray-200">
-        Add Task
+  <main class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+    <header class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <p class="text-sm font-medium text-indigo-600 dark:text-indigo-300">Workspace</p>
+        <h1 class="mt-1 text-3xl font-semibold tracking-tight">Tasks</h1>
+        <p class="mt-2 max-w-xl text-sm leading-6 text-slate-500 dark:text-slate-400">
+          Track work against the Laravel API. Status changes and deletes update the list immediately, then roll back if the request fails.
+        </p>
       </div>
-      <NuxtLink to="/categories"
-        class="flex-1 text-center py-2 rounded-lg font-medium cursor-pointer transition-colors mx-[1px] bg-gray-100 hover:bg-gray-200">
-        List Categories
-      </NuxtLink>
+      <button type="button" class="btn-primary" @click="openCreate">
+        <AppIcon name="plus" class="h-4 w-4" />
+        New task
+      </button>
+    </header>
+
+    <TaskFilters :filters="filters" @change="onFilterChange" />
+
+    <div v-if="error" class="mb-4 flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 sm:flex-row sm:items-center sm:justify-between dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100" role="alert">
+      <p>{{ error }}</p>
+      <button type="button" class="btn-secondary" @click="taskStore.fetchTasks()">
+        Retry
+      </button>
     </div>
 
-    <TaskFormAdd v-if="showCreateModal && !editingTask" :categories="categories" @save-task="createTask"
-      @cancel="cancelEdit" @add-category="handleAddCategory" />
+    <LoadingState v-if="loading && tasks.length === 0" />
 
-    <TaskFilter :active-filter="activeFilter" :search-query="searchQuery" @filter="handleFilter" @search="handleSearch"
-      @search-blur="handleSearchBlur" />
+    <EmptyState
+      v-else-if="isEmpty && !error"
+      :title="hasActiveFilters ? 'No tasks match these filters' : 'No tasks yet'"
+      :description="hasActiveFilters ? 'Try another view or clear the filters to see everything on the server.' : 'Create a task to send it to the Laravel API. Categories can be attached as you go.'"
+    >
+      <template #action>
+        <button v-if="!hasActiveFilters" type="button" class="btn-primary" @click="openCreate">
+          Create the first task
+        </button>
+      </template>
+    </EmptyState>
 
-    <TaskForm v-if="editingTask" :task="editingTask" :categories="categories" @save-task="createTask"
-      @cancel="cancelEdit" @add-category="handleAddCategory" />
+    <template v-else>
+      <TaskList
+        :tasks="tasks"
+        :history-by-task-id="historyByTaskId"
+        :history-loading-id="historyLoadingId"
+        :expanded-history="expandedHistory"
+        @toggle="onToggle"
+        @edit="openEdit"
+        @delete="pendingDelete = $event"
+        @toggle-history="onToggleHistory"
+      />
+      <PaginationBar
+        :current-page="currentPage"
+        :total-pages="totalPages"
+        :range-label="rangeLabel"
+        @change="taskStore.setPage"
+      />
+    </template>
 
-    <TaskList :tasks="tasks" :loading="loadingTasks" :current-page="currentPage" :total-pages="totalPages"
-      :total-tasks="totalTasks" :categories="categories" :taskHistory="taskHistory" :loadingHistory="loadingHistory"
-      @toggle-status="saveTaskStatus" @save-edit="createTask" @prev-page="() => setPage(currentPage - 1)"
-      @next-page="() => setPage(currentPage + 1)" @page-change="setPage" @edit-task="handleEdit"
-      @cancel-task="cancelEdit" @delete-task="handleDeleteTask" @add-category="handleAddCategory"
-      @load-history="handleShowHistory" @show-history="handleShowHistory" @handleFilter="handleFilter"
-      @handleFetchCategories="handleFetchCategories" />
+    <BaseModal
+      v-if="formOpen"
+      :title="editingTask ? 'Edit task' : 'New task'"
+      :description="editingTask ? 'Changes appear in the list immediately.' : 'The new task shows up at the top while it saves.'"
+      @close="closeForm"
+    >
+      <TaskForm
+        :task="editingTask"
+        :categories="categories"
+        :saving="saving"
+        :server-error="formError"
+        @submit="onSave"
+        @cancel="closeForm"
+      />
+    </BaseModal>
 
-    <LoadingOverlay v-if="loadingTasks || loadingCategories" />
-    <LoadingOverlay v-if="isSaving" :message="'Saving...'" />
-    <LoadingOverlay v-if="loadingTaskHistory" :message="'Loading history...'" />
-
-  </div>
+    <ConfirmDialog
+      v-if="pendingDelete"
+      title="Delete task"
+      :message="`Delete “${pendingDelete.title}”? This removes it from the API.`"
+      :pending="deleting"
+      @confirm="confirmDelete"
+      @cancel="pendingDelete = null"
+    />
+  </main>
 </template>
