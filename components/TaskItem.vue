@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import type { Task, TaskStatusHistory } from '~/types/task'
+import type { Task, TaskStatus, TaskStatusHistory } from '~/types/task'
 import { formatDisplayDate, isOverdue } from '~/utils/dates'
+import { STATUS_LABELS } from '~/utils/labels'
 
 const props = defineProps<{
   task: Task
@@ -10,32 +11,38 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  toggle: [task: Task]
+  'status-change': [task: Task, status: TaskStatus]
   edit: [task: Task]
   delete: [task: Task]
   'toggle-history': [taskId: number]
 }>()
 
+const statusId = useId()
 const overdue = computed(() => isOverdue(props.task.due_date, props.task.status))
+const statuses = Object.keys(STATUS_LABELS) as TaskStatus[]
+
+function onStatusChange(event: Event) {
+  const status = (event.target as HTMLSelectElement).value as TaskStatus
+  if (status === props.task.status) return
+  emit('status-change', props.task, status)
+}
 </script>
 
 <template>
   <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700">
     <div class="flex items-start gap-3">
-      <input
-        type="checkbox"
-        class="mt-1 h-4 w-4 rounded border-slate-300 accent-indigo-600"
-        :checked="task.status === 'completed'"
-        :aria-label="task.status === 'completed' ? `Reopen ${task.title}` : `Complete ${task.title}`"
-        @change="emit('toggle', task)"
-      >
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-2">
           <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100" :class="{ 'text-slate-400 line-through': task.status === 'completed' }">
             {{ task.title }}
           </h3>
-          <StatusBadge :status="task.status" />
           <PriorityBadge :priority="task.priority" />
+          <label class="sr-only" :for="statusId">Status for {{ task.title }}</label>
+          <select :id="statusId" class="field w-auto py-1 text-xs" :value="task.status" @change="onStatusChange">
+            <option v-for="status in statuses" :key="status" :value="status">
+              {{ STATUS_LABELS[status] }}
+            </option>
+          </select>
         </div>
         <p v-if="task.description" class="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
           {{ task.description }}

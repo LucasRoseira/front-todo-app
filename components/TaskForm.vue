@@ -171,9 +171,6 @@ async function addCategory() {
           <option value="in_progress">In progress</option>
           <option value="completed">Completed</option>
         </select>
-        <p v-if="task && status === 'in_progress'" class="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-300">
-          The current API only accepts pending or completed when updating a task.
-        </p>
       </div>
       <div>
         <label :for="priorityId" class="label">Priority</label>

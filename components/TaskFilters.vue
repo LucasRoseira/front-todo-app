@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import type { Category } from '~/types/category'
 import type { TaskFilters, TaskFilterType, TaskPriority, TaskStatus } from '~/types/task'
 
 const props = defineProps<{
   filters: TaskFilters
+  categories: Category[]
 }>()
 
 const emit = defineEmits<{
@@ -24,6 +26,7 @@ const advanced = reactive({
   status: (props.filters.status || '') as '' | TaskStatus,
   priority: (props.filters.priority || '') as '' | TaskPriority,
   due_date: props.filters.due_date || '',
+  category_id: (props.filters.category_id ?? '') as number | '',
   responsible_name: props.filters.responsible_name || '',
 })
 
@@ -37,6 +40,7 @@ function payload(): TaskFilters {
     status: advanced.status,
     priority: advanced.priority,
     due_date: advanced.due_date,
+    category_id: advanced.category_id === '' ? undefined : Number(advanced.category_id),
     responsible_name: advanced.responsible_name.trim(),
   }
 }
@@ -65,6 +69,7 @@ function clearAll() {
   advanced.status = ''
   advanced.priority = ''
   advanced.due_date = ''
+  advanced.category_id = ''
   advanced.responsible_name = ''
   emitChange()
 }
@@ -136,9 +141,18 @@ function clearAll() {
           <option value="high">High</option>
         </select>
       </label>
-      <label class="block text-sm sm:col-span-2">
+      <label class="block text-sm">
         <span class="mb-1 block font-medium text-slate-700 dark:text-slate-200">Due on or after</span>
-        <input v-model="advanced.due_date" type="date" class="field sm:max-w-xs">
+        <input v-model="advanced.due_date" type="date" class="field">
+      </label>
+      <label class="block text-sm">
+        <span class="mb-1 block font-medium text-slate-700 dark:text-slate-200">Category</span>
+        <select v-model="advanced.category_id" class="field">
+          <option value="">Any category</option>
+          <option v-for="category in categories" :key="category.id" :value="category.id">
+            {{ category.name }}
+          </option>
+        </select>
       </label>
       <div class="sm:col-span-2 flex justify-end">
         <button type="submit" class="btn-primary">

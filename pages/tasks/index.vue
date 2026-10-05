@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import type { Task, TaskFilters, TaskPayload } from '~/types/task'
+import type { Task, TaskFilters, TaskPayload, TaskStatus } from '~/types/task'
+import { STATUS_LABELS } from '~/utils/labels'
 import { useTaskStore } from '~/stores/tasks'
 import { useCategoriesStore } from '~/stores/categories'
 import { useToastStore } from '~/stores/toasts'
@@ -87,10 +88,10 @@ async function onSave(payload: TaskPayload) {
   }
 }
 
-async function onToggle(task: Task) {
+async function onStatusChange(task: Task, status: TaskStatus) {
   try {
-    await taskStore.toggleTaskStatus(task)
-    toast.success(task.status === 'completed' ? 'Task reopened' : 'Task completed')
+    await taskStore.setTaskStatus(task, status)
+    toast.success(`Status set to ${STATUS_LABELS[status].toLowerCase()}`)
   } catch (cause) {
     toast.error(toApiError(cause).message)
   }
@@ -140,7 +141,7 @@ async function onToggleHistory(taskId: number) {
       </button>
     </header>
 
-    <TaskFilters :filters="filters" @change="onFilterChange" />
+    <TaskFilters :filters="filters" :categories="categories" @change="onFilterChange" />
 
     <div v-if="error" class="mb-4 flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 sm:flex-row sm:items-center sm:justify-between dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100" role="alert">
       <p>{{ error }}</p>
@@ -169,7 +170,7 @@ async function onToggleHistory(taskId: number) {
         :history-by-task-id="historyByTaskId"
         :history-loading-id="historyLoadingId"
         :expanded-history="expandedHistory"
-        @toggle="onToggle"
+        @status-change="onStatusChange"
         @edit="openEdit"
         @delete="pendingDelete = $event"
         @toggle-history="onToggleHistory"

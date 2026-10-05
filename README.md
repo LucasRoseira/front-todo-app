@@ -138,18 +138,18 @@ Network failures (API not running, wrong base URL) use a single message that poi
 - The API has no auth. The UI does not send tokens.
 - Category rows are `name` and `color` only. The old active/archived filter is gone because the table has no status column.
 - The category picker loads at most 100 categories (`per_page` max on the API).
-- Creating a task with status `in_progress` is allowed. Updating an existing task to `in_progress` is not: `TaskUpdateRequest` only allows `pending` and `completed`. The edit form warns about that, and a `422` is shown if it is submitted anyway. The checkbox only toggles completed and pending, which the update endpoint accepts.
+- Task status on create and update is `pending`, `in_progress`, or `completed`. The edit form and the status control on each row send that value with `PUT /api/tasks/{id}`.
+- The task list sends `category_id` when a category filter is applied. `IndexTaskRequest` validates it and the task query filters on that column.
 - New tasks cannot use a past due date (`after_or_equal:today`). Updates can.
 - Task order is whatever the API returns (`orderBy('priority')`, which is alphabetical). The UI does not reorder a page.
-- The task index does not filter by `category_id` (the repository never applies that query param). The category control is on the task form, not in the list filters, so the UI does not offer a filter the API would ignore.
 - Deleting a category nulls `category_id` on tasks (`onDelete('set null')`). The UI says so in the confirm dialog.
-- The API may send mail when a task is updated or deleted. A mail failure comes back as a normal API error and the optimistic change is rolled back.
+- Task update and delete emails are best-effort on the API. A mail failure is logged and does not roll back the task change.
 - Data is loaded on the client (`onMounted`) so `nuxt build` does not need a running API.
 
 ## Completed features
 
-- Task list with search, quick views (all, today, pending, overdue), advanced filters, and pagination
-- Create, edit, complete/reopen, and delete tasks
+- Task list with search, quick views (all, today, pending, overdue), advanced filters including category, and pagination
+- Create, edit, and delete tasks, and set status to pending, in progress, or completed
 - Per-task status history
 - Category list with name search, color, pagination, create, edit, and delete
 - Create a category from the task form and select it
@@ -163,6 +163,5 @@ Network failures (API not running, wrong base URL) use a single message that poi
 - No automated test suite in this repo.
 - No authentication, realtime updates, or offline queue.
 - A filtered list can briefly show a new task or category that the active filter would exclude. Creates stay in the local list so the save feels immediate.
-- More than 100 categories will not all appear in the task dropdown.
-- Updating a task to "In progress" fails until the Laravel `TaskUpdateRequest` allows that status.
+- More than 100 categories will not all appear in the task dropdown or the category filter.
 - Status history is loaded when a row is expanded, not with the list.

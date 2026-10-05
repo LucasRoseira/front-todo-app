@@ -150,23 +150,22 @@ export const useTaskStore = defineStore('tasks', () => {
     }
   }
 
-  async function toggleTaskStatus(task: Task) {
+  async function setTaskStatus(task: Task, status: TaskStatus) {
     const index = tasks.value.findIndex((item) => item.id === task.id)
-    if (index === -1) return
+    if (index === -1 || tasks.value[index].status === status) return
 
-    const previousStatus: TaskStatus = tasks.value[index].status
-    const nextStatus: TaskStatus = previousStatus === 'completed' ? 'pending' : 'completed'
-    tasks.value[index] = { ...tasks.value[index], status: nextStatus }
+    const previousStatus = tasks.value[index].status
+    tasks.value[index] = { ...tasks.value[index], status }
 
     try {
       const updated = await $fetch<Task>(endpoint(`/${task.id}`), {
         method: 'PUT',
-        body: { status: nextStatus },
+        body: { status },
       })
       tasks.value[index] = attachCategory({
         ...tasks.value[index],
         ...updated,
-        status: updated.status ?? nextStatus,
+        status: updated.status ?? status,
         category: updated.category ?? tasks.value[index].category ?? null,
       })
       delete historyByTaskId.value[task.id]
@@ -233,7 +232,7 @@ export const useTaskStore = defineStore('tasks', () => {
     setPerPage,
     createTask,
     updateTask,
-    toggleTaskStatus,
+    setTaskStatus,
     deleteTask,
     fetchTaskHistory,
   }

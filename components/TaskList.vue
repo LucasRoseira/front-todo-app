@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Task, TaskStatusHistory } from '~/types/task'
+import type { Task, TaskStatus, TaskStatusHistory } from '~/types/task'
 
 defineProps<{
   tasks: Task[]
@@ -9,7 +9,7 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  toggle: [task: Task]
+  'status-change': [task: Task, status: TaskStatus]
   edit: [task: Task]
   delete: [task: Task]
   'toggle-history': [taskId: number]
@@ -25,7 +25,7 @@ const emit = defineEmits<{
       :history="historyByTaskId[task.id] || []"
       :history-expanded="Boolean(expandedHistory[task.id])"
       :history-loading="historyLoadingId === task.id"
-      @toggle="emit('toggle', $event)"
+      @status-change="(task, status) => emit('status-change', task, status)"
       @edit="emit('edit', $event)"
       @delete="emit('delete', $event)"
       @toggle-history="emit('toggle-history', $event)"
